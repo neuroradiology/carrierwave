@@ -1,8 +1,15 @@
-# encoding: utf-8
-
 require 'spec_helper'
+require 'fog'
+require 'carrierwave/storage/fog'
 
-for credential in FOG_CREDENTIALS
+unless ENV['REMOTE'] == 'true'
+  Fog.mock!
+end
+
+require_relative './fog_credentials' # after Fog.mock!
+require_relative './fog_helper'
+
+FOG_CREDENTIALS.each do |credential|
   fog_tests(credential)
 end
 
@@ -12,21 +19,21 @@ describe CarrierWave::Storage::Fog::File do
 
     context "with normal url" do
       before do
-        subject.stub(:url).and_return{ 'http://example.com/path/to/foo.txt' }
+        allow(subject).to receive(:url){ 'http://example.com/path/to/foo.txt' }
       end
 
       it "should extract filename from url" do
-        subject.filename.should == 'foo.txt'
+        expect(subject.filename).to eq('foo.txt')
       end
     end
 
     context "when url contains '/' in query string" do
       before do
-        subject.stub(:url).and_return{ 'http://example.com/path/to/foo.txt?bar=baz/fubar' }
+        allow(subject).to receive(:url){ 'http://example.com/path/to/foo.txt?bar=baz/fubar' }
       end
 
       it "should extract correct part" do
-        subject.filename.should == 'foo.txt'
+        expect(subject.filename).to eq('foo.txt')
       end
     end
   end

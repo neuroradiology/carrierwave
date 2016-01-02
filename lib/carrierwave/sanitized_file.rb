@@ -1,8 +1,12 @@
-# encoding: utf-8
-
 require 'pathname'
 require 'active_support/core_ext/string/multibyte'
-require 'mime/types'
+
+begin
+  # Use mime/types/columnar if available, for reduced memory usage
+  require 'mime/types/columnar'
+rescue LoadError
+  require 'mime/types'
+end
 
 module CarrierWave
 
@@ -22,7 +26,7 @@ module CarrierWave
       attr_writer :sanitize_regexp
 
       def sanitize_regexp
-        @sanitize_regexp ||= /[^a-zA-Z0-9\.\-\+_]/
+        @sanitize_regexp ||= /[^[:word:]\.\-\+]/
       end
     end
 
@@ -142,8 +146,7 @@ module CarrierWave
     # [Boolean] Whether the file exists
     #
     def exists?
-      return File.exist?(self.path) if self.path
-      return false
+      self.path.present? && File.exist?(self.path)
     end
 
     ##
@@ -159,9 +162,9 @@ module CarrierWave
       elsif is_path?
         File.open(@file, "rb") {|file| file.read}
       else
-        @file.rewind if @file.respond_to?(:rewind)
+        @file.try(:rewind)
         @content = @file.read
-        @file.close if @file.respond_to?(:close) && @file.respond_to?(:closed?) && !@file.closed?
+        @file.try(:close) unless @file.try(:closed?)
         @content
       end
     end
@@ -284,7 +287,7 @@ module CarrierWave
       if file.is_a?(Hash)
         @file = file["tempfile"] || file[:tempfile]
         @original_filename = file["filename"] || file[:filename]
-        @content_type = file["content_type"] || file[:content_type]
+        @content_type = file["content_type"] || file[:content_type] || file["type"] || file[:type]
       else
         @file = file
         @original_filename = nil
@@ -305,7 +308,7 @@ module CarrierWave
 
     # Sanitize the filename, to prevent hacking
     def sanitize(name)
-      name = name.gsub("\\", "/") # work-around for IE
+      name = name.tr("\\", "/") # work-around for IE
       name = File.basename(name)
       name = name.gsub(sanitize_regexp,"_")
       name = "_#{name}" if name =~ /\A\.+\z/
